@@ -1,0 +1,483 @@
+<!doctype html>
+<!-- For Arabic / right-to-left boards: <html lang="ar" dir="rtl">. For the dark theme: add data-theme="dark". -->
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<title>Architecture Board</title>
+<!--
+  ARCHITECTURE BOARD TEMPLATE (neutral example content; replace all of it).
+  - Pages: any number. Each <section class="page"> is one page; add a size class for other formats
+    (a4-portrait, a3, a3-portrait, letter, letter-portrait; default A4 landscape). Sizes can be mixed.
+  - "Page X / N" fills itself in. Leave .hdr-page empty.
+  - Boxes: position them however you like (absolute coordinates, or CSS grid/flex inside a page).
+    Give each box an id, then connect them with arrow() calls at the bottom. Arrows are routed
+    from the boxes' real positions, so moving a box never breaks its arrows.
+  - Sequence diagrams: drawSequence(svgId, lifelines, messages, cfg). Each one also exports Mermaid.
+  - Theme: edit the CSS variables in :root (brand colours, font). Arrow colours use the same names.
+-->
+<style>
+  :root {
+    --font: -apple-system, "Helvetica Neue", "Segoe UI", Helvetica, Arial, "Geeza Pro", "SF Arabic", "Noto Sans Arabic", Tahoma, sans-serif;
+    --paper: #ffffff; --ink: #1f2328; --muted: #57606a; --faint: #6e7781; --rule: #d0d7de;
+    --c-dark: #24292f;   --bg-neutral: #eef1f4;
+    --c-blue: #2f6fbf;   --bg-blue: #f0f6ff;
+    --c-green: #2da44e;  --bg-green: #f0fbf3;
+    --c-red: #d1242f;    --bg-red: #fff5f5;   --bg-pink: #fde8e8;
+    --c-purple: #8250df; --bg-purple: #faf7ff;
+    --c-amber: #d4a24c;  --bg-amber: #fffaf0; --t-amber: #b7791f;
+    --c-gray: #57606a;   --lifeline: #8c959f; --head-bg: #e9eef3;
+    --min-font: 9px;
+  }
+  [data-theme="dark"] {
+    --paper: #0d1117; --ink: #e6edf3; --muted: #9da7b3; --faint: #8b949e; --rule: #30363d;
+    --c-dark: #c9d1d9;   --bg-neutral: #161b22;
+    --c-blue: #58a6ff;   --bg-blue: #0c2d6b33;
+    --c-green: #3fb950;  --bg-green: #0f532633;
+    --c-red: #f85149;    --bg-red: #67060c33; --bg-pink: #67060c66;
+    --c-purple: #a371f7; --bg-purple: #3c1e7033;
+    --c-amber: #d29922;  --bg-amber: #4b290133; --t-amber: #d29922;
+    --c-gray: #8b949e;   --lifeline: #484f58; --head-bg: #21262d;
+  }
+
+  /* ---- page formats (canvas px at 96dpi / 0.96; printed with zoom .96) ---- */
+  @page a4l { size: A4 landscape; margin: 0; }      @page a4p { size: A4 portrait; margin: 0; }
+  @page a3l { size: A3 landscape; margin: 0; }      @page a3p { size: A3 portrait; margin: 0; }
+  @page ltl { size: letter landscape; margin: 0; }  @page ltp { size: letter portrait; margin: 0; }
+  .page                 { page: a4l; width: 1170px; height: 827px; }
+  .page.a4-portrait     { page: a4p; width: 827px;  height: 1170px; }
+  .page.a3              { page: a3l; width: 1654px; height: 1170px; }
+  .page.a3-portrait     { page: a3p; width: 1170px; height: 1654px; }
+  .page.letter          { page: ltl; width: 1100px; height: 850px; }
+  .page.letter-portrait { page: ltp; width: 850px;  height: 1100px; }
+  @media print  { .page { zoom: 0.96; break-after: page; } .page:last-child { break-after: auto; } }
+  @media screen { body { background: #8c959f; padding: 16px 0; } .page { margin: 0 auto 16px; box-shadow: 0 2px 8px #0004; } }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { font-family: var(--font); color: var(--ink); }
+  .page { position: relative; overflow: hidden; background: var(--paper); }
+
+  .hdr-title { position: absolute; inset-inline-start: 16px; top: 10px; font-size: 20px; font-weight: 700; }
+  .hdr-sub   { position: absolute; inset-inline-start: 16px; top: 34px; font-size: 11px; color: var(--muted); }
+  .hdr-page  { position: absolute; inset-inline-end: 16px; top: 16px; font-size: 11px; color: var(--muted); }
+  .hdr-rule  { position: absolute; left: 16px; right: 16px; top: 52px; border-top: 1px solid var(--rule); }
+
+  .box { position: absolute; border: 1.5px solid var(--c-dark); border-radius: 8px; padding: 8px 10px; background: var(--paper); font-size: 10px; line-height: 1.3; }
+  .box h3 { font-size: 12px; font-weight: 700; margin-bottom: 3px; }
+  .box h4 { font-size: 11px; font-weight: 700; margin-bottom: 2px; }
+  .inner  { border-radius: 6px; padding: 5px 8px; }
+  .center { text-align: center; }
+  .note   { font-size: var(--min-font); color: var(--faint); }
+  .static { position: static; }   /* for boxes laid out by a CSS grid/flex container */
+
+  /* colour roles */
+  .neutral  { border-color: var(--c-dark);  background: var(--bg-neutral); }
+  .new      { border-color: var(--c-amber); background: var(--bg-amber); }
+  .boundary { border: 2.5px dashed var(--c-red); background: var(--bg-red); }
+  .danger   { border-color: var(--c-red); }
+  .danger h3, .boundary h3 { color: var(--c-red); }
+  .identity { border-color: var(--c-blue);  background: var(--bg-blue); } .identity > h3 { color: var(--c-blue); }
+  .crypto   { border-color: var(--c-green); background: var(--bg-green); }
+  .private  { border-width: 2px; }
+  .async    { border-color: var(--c-purple); background: var(--bg-purple); }
+  .legacy   { border: 1.5px dashed var(--c-amber); background: var(--bg-amber); }
+  .highlight{ border-color: var(--c-red); background: var(--bg-pink); }
+  .white    { background: var(--paper); } .white h4 { color: var(--ink); }
+
+  .pill-new { position: absolute; inset-inline-end: 10px; top: 8px; background: var(--c-amber); color: #fff; font-size: var(--min-font); font-weight: 700; padding: 2px 8px; border-radius: 10px; }
+  .amber-note { color: var(--t-amber); font-size: var(--min-font); }
+
+  svg.overlay { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
+  svg text { font-family: var(--font); }
+
+  .legend { position: absolute; font-size: var(--min-font); color: var(--muted); }
+  .legend div { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .legend i { display: inline-block; width: 28px; border-top: 2.5px dashed var(--c-red); }
+  .legend i.resp { border-top: 1.5px dashed var(--c-blue); }
+
+  .changes li { list-style: none; display: flex; gap: 8px; align-items: center; font-size: 10px; margin: 0 0 8px; }
+  .changes b.n { flex: 0 0 16px; height: 16px; border-radius: 50%; background: var(--c-green); color: #fff; font-size: var(--min-font); display: flex; align-items: center; justify-content: center; }
+
+  table.board { border-collapse: collapse; font-size: 10px; width: 100%; }
+  table.board th, table.board td { border: 1px solid var(--rule); padding: 4px 6px; text-align: start; vertical-align: top; }
+  table.board th { background: var(--bg-neutral); font-weight: 700; }
+</style>
+</head>
+<body>
+
+<!-- ============================ PAGE: overview ============================ -->
+<section class="page" id="p-overview">
+  <div class="hdr-title">Shelfwise (fictional): E-book Lending Platform</div>
+  <div class="hdr-sub">Target architecture: public entry, private services and the stores they own, events, failure handling and SLOs</div>
+  <div class="hdr-page"></div>
+  <div class="hdr-rule"></div>
+
+  <!-- Left column: external parties -->
+  <div class="box neutral" id="reader" style="left:16px;top:70px;width:180px;height:110px">
+    <h3>1. Reader apps</h3>
+    <p>Web, iOS, Android, e-ink readers<br>Sign-in: library card + PIN<br>(via the library's IdP)</p>
+  </div>
+  <div class="box neutral" id="cdn" style="left:16px;top:240px;width:180px;height:100px">
+    <h3>2. CDN</h3>
+    <p>Encrypted EPUB / PDF files only.<br>Signed URLs, TTL 10 min.<br>Useless without a license (8).</p>
+  </div>
+  <div class="box neutral" id="publisher" style="left:16px;top:390px;width:180px;height:150px">
+    <h3>10. Publisher feeds</h3>
+    <p>External. Nightly ONIX metadata + license terms per title: copies owned, 26-loan cap or 24-month expiry (example).</p>
+  </div>
+  <div class="legend" style="left:16px;top:548px">
+    <div><i></i> public / private boundary</div>
+  </div>
+
+  <!-- Top row: public entry and identity -->
+  <div class="box boundary" id="api" style="left:256px;top:70px;width:500px;height:110px">
+    <h3>3. PUBLIC API (BFF): the only internet-facing entry</h3>
+    <p>(a) verify OIDC access token locally (sig, exp, aud = shelfwise)<br>
+       (b) per-card rate limit 60 req/min, per-IP 600 req/min<br>
+       (c) attach card_id + library_id; call private services over mTLS</p>
+  </div>
+  <div class="box identity" id="idp" style="left:816px;top:70px;width:338px;height:110px">
+    <h3>4. Library identity providers</h3>
+    <p>One OIDC / SAML IdP per library (tenant).<br>Token claims: card_id, library_id, age_band.<br>Public keys published as JWKS.</p>
+  </div>
+
+  <!-- Middle: private zone with services over the stores they own -->
+  <div class="box private" id="zone" style="left:256px;top:215px;width:898px;height:245px">
+    <h3>PRIVATE SERVICES: no public access (each store has exactly one owner)</h3>
+  </div>
+  <div class="box inner" id="svc-catalog" style="left:270px;top:245px;width:162px;height:90px"><h4>5. Catalog</h4><p>Search + title pages.<br>Availability cached 30 s.</p></div>
+  <div class="box inner" id="svc-lending" style="left:447px;top:245px;width:162px;height:90px"><h4>6. Lending</h4><p>Checkout / return.<br>Loan 14 days (example).<br>Max 5 loans per card.</p></div>
+  <div class="box inner" id="svc-holds" style="left:624px;top:245px;width:162px;height:90px"><h4>7. Holds</h4><p>FIFO queue per title.<br>Pickup window 72 h.</p></div>
+  <div class="box inner crypto" id="svc-drm" style="left:801px;top:245px;width:162px;height:90px"><h4>8. DRM licenses</h4><p>Per-device license,<br>expires with the loan;<br>valid offline.</p></div>
+  <div class="box inner" id="svc-notify" style="left:978px;top:245px;width:162px;height:90px"><h4>9. Notifications</h4><p>Email / push:<br>hold ready, due soon.</p></div>
+  <div class="box inner white" id="db-catalog" style="left:270px;top:360px;width:162px;height:80px"><h4>Search index</h4><p class="note">titles, rebuilt nightly</p></div>
+  <div class="box inner white" id="db-lending" style="left:447px;top:360px;width:162px;height:80px"><h4>Lending DB (Postgres)</h4><p class="note">copies, loans, outbox; only store with card_id</p></div>
+  <div class="box inner white" id="db-holds" style="left:624px;top:360px;width:162px;height:80px"><h4>Holds store</h4><p class="note">queue entries, hashed card_id</p></div>
+  <div class="box inner white crypto" id="db-drm" style="left:801px;top:360px;width:162px;height:80px"><h4>Key vault (HSM)</h4><p class="note">content keys never leave it</p></div>
+
+  <!-- Event band -->
+  <div class="box async" id="bus" style="left:256px;top:480px;width:620px;height:62px">
+    <h4>11. Event bus: loan.created · loan.returned · hold.ready</h4>
+    <p>Ids only (event_id, title_id, library_id). Consumers: Holds, Notifications, Analytics.</p>
+  </div>
+  <div class="box neutral" id="warehouse" style="left:900px;top:480px;width:254px;height:62px">
+    <h4>12. Analytics warehouse</h4>
+    <p>Circulation stats; anonymised after 30 days.</p>
+  </div>
+
+  <!-- Bottom row -->
+  <div class="box danger" style="left:16px;top:580px;width:440px;height:234px">
+    <h3>13. Failure modes</h3>
+    <p>Search index down:<br>&nbsp;serve cached results for 5 min, then "search unavailable"; checkout by title_id still works.<br>
+       Lending DB down:<br>&nbsp;FAIL CLOSED on checkout / return (never oversell copies); open books keep working (licenses are offline).<br>
+       DRM license service down:<br>&nbsp;existing licenses unaffected; new checkouts retry for 2 min, then fail with Retry-After.<br>
+       Event bus down:<br>&nbsp;outbox keeps events; notifications delayed, never lost.<br>
+       Library IdP down:<br>&nbsp;signed-in readers continue until token expiry (1 h); new sign-ins fail for that library only.</p>
+  </div>
+  <div class="box" style="left:472px;top:580px;width:340px;height:234px">
+    <h3>14. SLOs and observability</h3>
+    <p>Checkout p99 &lt; 400 ms; availability 99.9 % / month.<br>
+       Metrics: checkouts / min, hold-queue length, license errors, outbox lag.<br>
+       Audit per loan action: hashed card_id, title_id, library_id, action, request_id.<br>
+       Alerts: copies_available &lt; 0 (must never happen), license error rate &gt; 1 %, outbox lag &gt; 60 s.</p>
+  </div>
+  <div class="box async" style="left:828px;top:580px;width:326px;height:234px">
+    <h3>15. Data contracts</h3>
+    <p>Event envelope: event_id, type, occurred_at, title_id, library_id, schema_version.<br>
+       No card_id, name or email in any event.<br>
+       Delivery: at-least-once; consumers dedupe on event_id (kept 7 days).<br>
+       Retention on the bus: 7 days.<br>
+       Publisher feed: signed ONIX files; rejected if the signature or schema fails, previous terms stay active.</p>
+  </div>
+</section>
+
+<!-- ============================ PAGE: flow + incident + decisions ============================ -->
+<section class="page" id="p-flows">
+  <div class="hdr-title">Shelfwise (fictional): E-book Lending Platform</div>
+  <div class="hdr-sub">Flow A: borrow an e-book, the last-copy race, and key decisions</div>
+  <div class="hdr-page"></div>
+  <div class="hdr-rule"></div>
+
+  <svg class="overlay" id="seq-a"></svg>
+
+  <div class="box danger" style="left:16px;top:592px;width:609px;height:222px">
+    <h3>Incident class: two readers check out the last copy at once</h3>
+  </div>
+  <div class="box inner center" id="t-readers" style="left:28px;top:622px;width:125px;height:56px"><h4>Readers A + B</h4><p>checkout, same title,<br>same millisecond</p></div>
+  <div class="box inner center" id="t-api" style="left:177px;top:622px;width:113px;height:56px"><h4>Public API</h4><p>both requests valid</p></div>
+  <div class="box inner center highlight" id="t-lending" style="left:326px;top:622px;width:110px;height:56px;padding:3px"><h4>Lending</h4><p>one conditional<br>UPDATE per request</p></div>
+  <div class="box inner center" id="t-db" style="left:474px;top:622px;width:113px;height:56px"><h4>Lending DB</h4><p>exactly one row<br>updated: 1 winner</p></div>
+  <div class="box inner center danger" id="t-409" style="left:316px;top:704px;width:134px;height:40px"><h4>409 + hold position</h4><p>for the loser</p></div>
+  <div style="position:absolute;left:28px;top:750px;width:590px;font-size:10px;line-height:1.3">
+    UPDATE copies SET available = available - 1 WHERE title_id = ? AND available &gt; 0, in the loan transaction.<br>
+    Idempotency key per checkout (kept 24 h), so a client retry never creates a second loan.
+  </div>
+  <div class="note" style="position:absolute;left:28px;top:785px;width:590px">
+    Alert if copies_available &lt; 0 or active loans &gt; licensed copies; audit every 409.<br>
+    Fixes the incident class: overselling licensed copies, which breaches the publisher contract.
+  </div>
+
+  <div class="box" style="left:640px;top:592px;width:515px;height:222px">
+    <h3 style="margin-bottom:10px">Key decisions</h3>
+    <ul class="changes">
+      <li><b class="n">1</b>One public entry (BFF); services unreachable from the internet</li>
+      <li><b class="n">2</b>Per-library IdPs; API verifies tokens locally with cached JWKS</li>
+      <li><b class="n">3</b>Copies reserved by one conditional UPDATE, no distributed lock</li>
+      <li><b class="n">4</b>Idempotency key on every checkout, kept 24 h</li>
+      <li><b class="n">5</b>Licenses valid offline: a DRM outage is not a reading outage</li>
+      <li><b class="n">6</b>card_id lives only in the Lending DB; events carry ids only</li>
+      <li><b class="n">7</b>Transactional outbox for every loan event</li>
+      <li><b class="n">8</b>Analytics anonymised after 30 days (example)</li>
+    </ul>
+  </div>
+</section>
+
+<script>
+/* =====================================================================
+   ENGINE: page counter, arrow(), drawSequence(), toMermaid().
+   You normally don't edit this block; edit the CALLS further down.
+   ===================================================================== */
+const NS = "http://www.w3.org/2000/svg";
+const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const colour = (c) => (c || "dark").startsWith("#") ? c : cssVar(`--c-${c || "dark"}`) || c;
+function svgEl(parent, tag, attrs, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text != null) {
+    e.textContent = text;   // direction from the label's own script, not the page's (keeps "1 request" intact in RTL)
+    if (tag === "text") e.setAttribute("direction", /^[^A-Za-z]*[֐-ࣿ]/.test(text) ? "rtl" : "ltr");
+  }
+  parent.appendChild(e); return e;
+}
+function overlayFor(page) {               // one auto-created SVG overlay per page for arrows
+  let svg = page.querySelector("svg.overlay.arrows");
+  if (!svg) {
+    svg = svgEl(page, "svg", { class: "overlay arrows" });
+    svg.setAttribute("width", page.clientWidth); svg.setAttribute("height", page.clientHeight);
+    svg.setAttribute("viewBox", `0 0 ${page.clientWidth} ${page.clientHeight}`);
+    svgEl(svg, "defs", {});
+  }
+  return svg;
+}
+function marker(svg, col) {
+  const id = "m" + col.replace(/[^a-z0-9]/gi, "") + "-" + (svg.id || svg.parentNode.id);
+  if (!svg.querySelector("#" + CSS.escape(id))) {
+    const defs = svg.querySelector("defs") || svgEl(svg, "defs", {});
+    const m = svgEl(defs, "marker", { id, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" });
+    svgEl(m, "path", { d: "M0,0 L10,5 L0,10z", fill: col });
+  }
+  return `url(#${id})`;
+}
+function rectOf(el) {                     // position relative to its .page (immune to print zoom)
+  const page = el.closest(".page"); let x = 0, y = 0, e = el;
+  while (e && e !== page) { x += e.offsetLeft; y += e.offsetTop; e = e.offsetParent; }
+  return { x, y, w: el.offsetWidth, h: el.offsetHeight, page };
+}
+function anchor(r, side, at) {
+  return { top: [r.x + r.w * at, r.y], bottom: [r.x + r.w * at, r.y + r.h],
+           left: [r.x, r.y + r.h * at], right: [r.x + r.w, r.y + r.h * at] }[side];
+}
+function guessSides(a, b) {
+  const dx = (b.x + b.w / 2) - (a.x + a.w / 2), dy = (b.y + b.h / 2) - (a.y + a.h / 2);
+  const hGap = dx > 0 ? b.x - (a.x + a.w) : a.x - (b.x + b.w);
+  return hGap > 0 ? (dx > 0 ? ["right", "left"] : ["left", "right"]) : (dy > 0 ? ["bottom", "top"] : ["top", "bottom"]);
+}
+/**
+ * arrow(from, to, opts): draw a connector between two elements (CSS selectors or elements).
+ * opts: from/to side ("top"|"right"|"bottom"|"left", guessed if omitted)
+ *       fromAt/toAt  position along the side, 0..1 (default .5)
+ *       straight     true: keep the source coordinate so the line is perfectly straight
+ *       route        "orthogonal" (default) | "straight" (diagonal allowed) | "curve"
+ *       via          for orthogonal: x (horizontal sides) or y (vertical sides) of the elbow
+ *       color        dark|blue|green|red|purple|amber|gray or any #hex
+ *       style        "solid" | "dashed" | "dotted"      both: true for arrowheads at both ends
+ *       label        "line1|line2" placed above / right of the middle of the longest segment
+ *       labelBelow   "line" placed below / left of it    labelWeight 600 by default
+ */
+function arrow(from, to, o = {}) {
+  const A = rectOf(typeof from === "string" ? document.querySelector(from) : from);
+  const B = rectOf(typeof to === "string" ? document.querySelector(to) : to);
+  const [gs, gt] = guessSides(A, B);
+  const fs = o.from || gs, ts = o.to || gt;
+  let [x1, y1] = anchor(A, fs, o.fromAt ?? .5), [x2, y2] = anchor(B, ts, o.toAt ?? .5);
+  const horiz = (s) => s === "left" || s === "right";
+  if (o.straight) { if (horiz(fs) && horiz(ts)) y2 = y1; else if (!horiz(fs) && !horiz(ts)) x2 = x1; }
+  const back = 1.5;                                             // stop just short of the edge
+  if (ts === "left") x2 -= back; if (ts === "right") x2 += back; if (ts === "top") y2 -= back; if (ts === "bottom") y2 += back;
+
+  let pts;
+  if (o.route === "straight" || o.route === "curve") pts = [[x1, y1], [x2, y2]];
+  else if (horiz(fs) && horiz(ts)) { const vx = o.via ?? (x1 + x2) / 2; pts = [[x1, y1], [vx, y1], [vx, y2], [x2, y2]]; }
+  else if (!horiz(fs) && !horiz(ts)) { const vy = o.via ?? (y1 + y2) / 2; pts = [[x1, y1], [x1, vy], [x2, vy], [x2, y2]]; }
+  else if (horiz(fs)) pts = [[x1, y1], [x2, y1], [x2, y2]];
+  else pts = [[x1, y1], [x1, y2], [x2, y2]];
+  pts = pts.filter((p, i) => i === 0 || p[0] !== pts[i - 1][0] || p[1] !== pts[i - 1][1]);
+  pts = pts.filter((p, i) => i === 0 || i === pts.length - 1 ||          // drop collinear midpoints
+    !((pts[i - 1][0] === p[0] && p[0] === pts[i + 1][0]) || (pts[i - 1][1] === p[1] && p[1] === pts[i + 1][1])));
+
+  const svg = overlayFor(A.page), col = colour(o.color);
+  const d = o.route === "curve"
+    ? (() => { const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+        return horiz(fs) ? `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}` : `M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}`; })()
+    : "M" + pts.map((p) => p.join(",")).join(" L");
+  const dash = { dashed: "5 4", dotted: "2 3" }[o.style];
+  const m = marker(svg, col);
+  svgEl(svg, "path", { d, fill: "none", stroke: col, "stroke-width": 1.5, "marker-end": m,
+                       ...(o.both ? { "marker-start": m } : {}), ...(dash ? { "stroke-dasharray": dash } : {}) });
+
+  // labels on the longest segment
+  let best = 0, seg = [pts[0], pts[pts.length - 1]];
+  for (let i = 1; i < pts.length; i++) { const L = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); if (L > best) { best = L; seg = [pts[i - 1], pts[i]]; } }
+  const mx = (seg[0][0] + seg[1][0]) / 2, my = (seg[0][1] + seg[1][1]) / 2, isH = Math.abs(seg[0][1] - seg[1][1]) < 1;
+  const put = (text, below) => {
+    if (!text) return; const lines = text.split("|"), lh = 11;
+    lines.forEach((ln, i) => {
+      const a = isH ? { x: mx, y: below ? my + 12 + i * lh : my - 5 - (lines.length - 1 - i) * lh, "text-anchor": "middle" }
+                    : { x: below ? mx - 7 : mx + 7, y: my + 3 + (i - (lines.length - 1) / 2) * lh, "text-anchor": below ? "end" : "start" };
+      svgEl(svg, "text", { ...a, "font-size": 9, "font-weight": o.labelWeight ?? 600, fill: col }, ln);
+    });
+  };
+  put(o.label, false); put(o.labelBelow, true);
+}
+
+/**
+ * drawSequence(svgId, lifelines, messages, cfg)
+ * lifelines: [id, label] or [id, label, x]; without x they are spread evenly (any number fits).
+ * messages: arrays [from, to, kind, color, label]
+ *     kind: "req" solid | "resp" dashed | "alt" dashed (use color red) | "self" loop
+ *     color: a theme colour name or #hex; "|" in a label = line break
+ *   or objects:
+ *     { note: "text", over: ["gw"] | ["gw","users"], color? }
+ *     { frame: "loop"|"alt"|"opt"|"par"|"critical"|"break", label: "condition", span: N }
+ *        (wraps the next N message rows)    { else: "condition" } inside an alt frame
+ * cfg: top, bottom (lifeline end), firstY, step (row spacing, auto-shrinks to fit), headW
+ */
+function drawSequence(svgId, lifelines, messages, cfg = {}) {
+  const svg = document.getElementById(svgId), page = svg.closest(".page");
+  const W = page.clientWidth, H = page.clientHeight;
+  svg.setAttribute("width", W); svg.setAttribute("height", H); svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const S = { top: 60, bottom: H - 259, firstY: 116, step: 30, ...cfg };
+  const spacing = (W - 32) / lifelines.length;
+  const L = lifelines.map(([id, label, x], i) => ({ id, label, x: x ?? Math.round(16 + spacing * (i + .5)) }));
+  const X = Object.fromEntries(L.map((l) => [l.id, l.x]));
+  const headW = S.headW ?? Math.min(110, Math.min(...L.slice(1).map((l, i) => l.x - L[i].x)) - 12);
+  const rows = messages.reduce((n, m) => n + (m.frame || m.else ? 0.6 : Array.isArray(m) && m[2] === "self" ? 1 + (m[4].split("|").length - 1) * .3 : 1), 0);
+  const avail = S.bottom - 12 - S.firstY;
+  const step = Math.min(S.step, avail / rows);
+  if (step < 18) console.warn(`Sequence ${svgId}: ${messages.length} rows are too many for the space; split it across pages.`);
+
+  svgEl(svg, "defs", {});
+  for (const l of L) {
+    svgEl(svg, "line", { x1: l.x, y1: S.top + 27, x2: l.x, y2: S.bottom, stroke: cssVar("--lifeline"), "stroke-dasharray": "4 4" });
+    svgEl(svg, "rect", { x: l.x - headW / 2, y: S.top, width: headW, height: 27, rx: 9, fill: cssVar("--head-bg"), stroke: colour("dark"), "stroke-width": 1.5 });
+    svgEl(svg, "text", { x: l.x, y: S.top + 17.5, "text-anchor": "middle", "font-size": headW < 80 ? 9.5 : 10.5, "font-weight": 700, fill: cssVar("--ink") }, l.label);
+  }
+  let y = S.firstY; const open = [];
+  const touch = (...xs) => open.forEach((f) => { f.minX = Math.min(f.minX, ...xs); f.maxX = Math.max(f.maxX, ...xs); });
+  const closeFrames = () => {
+    for (let i = open.length - 1; i >= 0; i--) {
+      const f = open[i]; if (f.left > 0) continue; open.splice(i, 1);
+      const x0 = f.minX - 24, x1 = f.maxX + 24, y1 = y - step * .55, col = colour("gray");
+      svgEl(svg, "rect", { x: x0, y: f.y0, width: x1 - x0, height: y1 - f.y0, fill: "none", stroke: col, "stroke-width": 1, rx: 3 });
+      svgEl(svg, "path", { d: `M${x0},${f.y0 + 13} H${x0 + 30 + f.type.length * 4} l6,-6 V${f.y0}`, fill: "none", stroke: col, "stroke-width": 1 });
+      svgEl(svg, "text", { x: x0 + 4, y: f.y0 + 10, "font-size": 9, "font-weight": 700, fill: col }, f.type);
+      svgEl(svg, "text", { x: x0 + 44 + f.type.length * 4, y: f.y0 + 10, "font-size": 9, fill: col }, `[${f.label}]`);
+      f.elses.forEach((e) => {
+        svgEl(svg, "line", { x1: x0, y1: e.y, x2: x1, y2: e.y, stroke: col, "stroke-dasharray": "4 3" });
+        svgEl(svg, "text", { x: x0 + 4, y: e.y + 10, "font-size": 9, fill: col }, `[${e.label}]`);
+      });
+    }
+  };
+  for (const m of messages) {
+    if (m.frame) { open.push({ type: m.frame, label: m.label || "", left: m.span, y0: y - step * .55, minX: Infinity, maxX: -Infinity, elses: [] }); y += step * .6; continue; }
+    if (m.else) { const f = open[open.length - 1]; if (f) f.elses.push({ y: y - step * .55, label: m.else }); y += step * .6; continue; }
+    if (m.note) {
+      const xs = m.over.map((id) => X[id]), x0 = Math.min(...xs) - 50, x1 = Math.max(...xs) + 50;
+      svgEl(svg, "rect", { x: x0, y: y - 12, width: x1 - x0, height: 18, fill: cssVar("--bg-amber"), stroke: colour(m.color || "amber"), rx: 2 });
+      svgEl(svg, "text", { x: (x0 + x1) / 2, y: y + 1, "text-anchor": "middle", "font-size": 9, fill: cssVar("--ink") }, m.note);
+      touch(x0 + 26, x1 - 26); y += step;
+    } else {
+      const [from, to, kind, c, label] = m, col = colour(c), lines = label.split("|");
+      const base = { fill: "none", stroke: col, "stroke-width": 1.5, "marker-end": marker(svg, col) };
+      if (kind === "self") {
+        const x = X[from];
+        svgEl(svg, "path", { ...base, d: `M${x},${y - 8} H${x + 16} V${y + 6} H${x + 3}` });
+        lines.forEach((l, i) => svgEl(svg, "text", { x: x + 28, y: y + 3 + i * 11, "font-size": 9, fill: col }, l));
+        touch(x, x + 40); y += step + (lines.length - 1) * step * .3;
+      } else {
+        const x1 = X[from], x2 = X[to], dir = x2 > x1 ? -2 : 2;
+        svgEl(svg, "path", { ...base, d: `M${x1},${y} H${x2 + dir}`, ...(kind !== "req" ? { "stroke-dasharray": "5 4" } : {}) });
+        svgEl(svg, "text", { x: (x1 + x2) / 2, y: y - 5, "text-anchor": "middle", "font-size": 9, fill: col }, lines.join(" "));
+        touch(x1, x2); y += step;
+      }
+    }
+    open.forEach((f) => f.left--); closeFrames();
+  }
+  (window.__flows ||= []).push({ id: svgId, lifelines: L, messages });
+}
+
+/** Mermaid sequenceDiagram source for a drawn flow (render.sh writes these to .mmd files). */
+function toMermaid({ lifelines, messages }) {
+  const q = (s) => s.replace(/\|/g, " ").replace(/[;#]/g, ",");
+  const out = ["sequenceDiagram"]; lifelines.forEach((l) => out.push(`  participant ${l.id} as ${q(l.label)}`));
+  const open = []; let indent = "  ";
+  for (const m of messages) {
+    if (m.frame) { out.push(`${indent}${m.frame === "break" ? "break" : m.frame} ${q(m.label || "")}`); open.push(m.span); indent += "  "; continue; }
+    if (m.else) { out.push(`${indent.slice(2)}else ${q(m.else)}`); continue; }
+    if (m.note) out.push(`${indent}Note over ${m.over.join(",")}: ${q(m.note)}`);
+    else { const [f, t, kind, , label] = m; out.push(`${indent}${f}${kind === "req" || kind === "self" ? "->>" : "-->>"}${t}: ${q(label)}`); }
+    for (let i = open.length - 1; i >= 0; i--) { if (--open[i] === 0) { open.splice(i, 1); indent = indent.slice(2); out.push(`${indent}end`); } }
+  }
+  return out.join("\n") + "\n";
+}
+
+/* =====================================================================
+   CONTENT: edit from here down.
+   ===================================================================== */
+
+/* ---- Overview page arrows (ids refer to boxes above) ---- */
+arrow("#reader", "#api", { straight: true, label: "HTTPS|OIDC token" });
+arrow("#api", "#idp", { straight: true, color: "blue", style: "dashed", label: "JWKS|cached 1 h", labelWeight: 400 });
+arrow("#reader", "#cdn", { from: "bottom", to: "top", straight: true, label: "encrypted file|signed URL, 10 min", labelWeight: 400 });
+arrow("#api", "#zone", { from: "bottom", to: "top", straight: true, label: "mTLS · card_id, library_id" });
+arrow("#publisher", "#zone", { from: "right", to: "left", fromAt: .1, straight: true });
+[["#svc-catalog", "#db-catalog"], ["#svc-lending", "#db-lending"], ["#svc-holds", "#db-holds"], ["#svc-drm", "#db-drm"]]
+  .forEach(([a, b]) => arrow(a, b, { from: "bottom", to: "top", straight: true, color: a === "#svc-drm" ? "green" : "dark" }));
+arrow("#zone", "#bus", { from: "bottom", to: "top", fromAt: .307, straight: true, color: "purple", label: "outbox relay", labelWeight: 400 });
+arrow("#bus", "#warehouse", { straight: true, color: "purple" });
+
+/* ---- Flow A: borrow an e-book ---- */
+drawSequence("seq-a", [
+  ["app", "Reader app"], ["api", "Public API"], ["lend", "Lending"], ["db", "Lending DB"],
+  ["drm", "DRM licenses"], ["holds", "Holds"], ["bus", "Event bus"],
+], [
+  ["app", "api", "req", "dark", "1 POST /loans {title_id} + OIDC token + Idempotency-Key"],
+  ["api", "api", "self", "dark", "2 verify token (cached JWKS); per-card limit 60 / min"],
+  ["api", "app", "alt", "red", "3 alt: 401 bad token / 429 over limit"],
+  ["api", "lend", "req", "dark", "4 checkout(card_id, title_id, key) over mTLS"],
+  ["lend", "db", "req", "blue", "5 UPDATE copies … WHERE available > 0"],
+  ["db", "lend", "resp", "blue", "6 rows updated: 1 or 0"],
+  { frame: "alt", label: "0 rows: no copy", span: 6 },
+  ["lend", "holds", "req", "dark", "7 enqueue hold (FIFO)"],
+  ["lend", "api", "resp", "dark", "8 409 + hold position"],
+  { else: "1 row: copy reserved" },
+  ["lend", "db", "req", "blue", "9 INSERT loan (14 days) + outbox row, same tx"],
+  ["lend", "drm", "req", "green", "10 issue license(loan_id, device, expires_at)"],
+  ["drm", "lend", "resp", "green", "11 signed license (valid offline until expiry)"],
+  ["lend", "api", "resp", "dark", "12 201 loan + license + signed CDN URL"],
+  ["api", "app", "resp", "dark", "13 response (card details never leave Lending)"],
+  { note: "after commit, asynchronously", over: ["db", "bus"] },
+  ["db", "bus", "req", "purple", "14 outbox relay: loan.created (ids only)"],
+], { bottom: 568 });
+
+/* ---- Incident flow arrows ---- */
+arrow("#t-readers", "#t-api"); arrow("#t-api", "#t-lending");
+arrow("#t-lending", "#t-db", { color: "green", label: "winner" });
+arrow("#t-lending", "#t-409", { from: "bottom", to: "top", straight: true, color: "red", label: "loser" });
+
+/* ---- Page counter: keep this last ---- */
+document.querySelectorAll(".page").forEach((p, i, all) => {
+  const h = p.querySelector(".hdr-page"); if (h) h.textContent = `Page ${i + 1} / ${all.length}`;
+});
+</script>
+</body>
+</html>

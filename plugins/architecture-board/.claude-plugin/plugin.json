@@ -1,0 +1,12 @@
+{
+  "name": "architecture-board",
+  "version": "1.0.0",
+  "description": "Generate review-ready architecture boards (trust-boundary maps, sequence diagrams, threat flows, decision lists) as PDF, HTML, PNG and Mermaid.",
+  "author": {
+    "name": "Youssef Nabil"
+  },
+  "homepage": "https://github.com/youssefnabill/claude-architecture-board",
+  "repository": "https://github.com/youssefnabill/claude-architecture-board",
+  "license": "MIT",
+  "keywords": ["architecture", "diagram", "sequence-diagram", "trust-boundary", "system-design"]
+}

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "architecture-board",
+  "description": "Review-ready architecture boards for Claude Code: trust-boundary maps, sequence diagrams, threat flows and decision lists rendered to PDF, PNG and Mermaid.",
+  "owner": {
+    "name": "Youssef Nabil"
+  },
+  "plugins": [
+    {
+      "name": "architecture-board",
+      "description": "Generate dense, precise, multi-page architecture boards (component and trust-boundary maps, sequence diagrams with frames and notes, threat/incident flows, data, deployment and operations views, changes or key-decisions lists) as PDF + HTML + per-page PNG + Mermaid. Any page count or size, light/dark/brand themes, Arabic and RTL support.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Youssef Nabil"
+      },
+      "source": "./plugins/architecture-board",
+      "category": "productivity",
+      "keywords": ["architecture", "diagram", "sequence-diagram", "trust-boundary", "security", "system-design", "pdf", "mermaid"],
+      "homepage": "https://github.com/youssefnabill/claude-architecture-board"
+    }
+  ]
+}
